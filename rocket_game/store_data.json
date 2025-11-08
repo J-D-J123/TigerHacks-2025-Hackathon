@@ -4,5 +4,8 @@
     "fuel_capacity": 1,
     "structure": 1,
     "avionics": 1,
-    "heat_shield": 1
+    "heat_shield": 1,
+    "battle_pass_level": 1,
+    "battle_pass_xp": 0,
+    "battle_pass_premium": false
 }
