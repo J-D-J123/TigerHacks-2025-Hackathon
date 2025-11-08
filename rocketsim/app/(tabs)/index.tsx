@@ -4,7 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import 'react-native-reanimated';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuth } from '@/context/AuthContext';
@@ -14,25 +14,83 @@ export default function Index() {
   const router = useRouter();
   const isDark = colorScheme === 'dark';
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, isAuthenticated, isLoading: authLoading } = useAuth();
+
+  console.log('🔍 Index Component Render:', {
+    isAuthenticated,
+    authLoading,
+    isLoading,
+    timestamp: new Date().toISOString()
+  });
+
+  // Auto-redirect if already logged in
+  useEffect(() => {
+    console.log('🎯 useEffect triggered:', {
+      isAuthenticated,
+      authLoading,
+      willRedirect: isAuthenticated && !authLoading
+    });
+
+    if (isAuthenticated && !authLoading) {
+      console.log('✅ Attempting redirect to /(tabs)/scene');
+      try {
+        router.replace('/(tabs)/scene');
+        console.log('✅ Router.replace called successfully');
+      } catch (error) {
+        console.error('❌ Router.replace failed:', error);
+      }
+    }
+  }, [isAuthenticated, authLoading, router]);
 
   const handleLogin = async () => {
+    console.log('🔐 handleLogin called');
     setIsLoading(true);
     try {
+      console.log('📞 Calling login()...');
       await login();
-      router.replace('/menu');
+      console.log('✅ login() completed successfully');
+      console.log('🔍 Auth state after login:', { isAuthenticated, authLoading });
+      
+      console.log('🚀 Attempting manual redirect to /(tabs)/scene');
+      router.replace('/(tabs)/scene');
+      console.log('✅ Manual redirect called');
     } catch (error) {
-      console.error('Login failed:', error);
+      console.error('❌ Login failed:', error);
+      console.error('❌ Error details:', JSON.stringify(error, null, 2));
       alert('Login failed. Please try again.');
     } finally {
+      console.log('🏁 handleLogin finally block');
       setIsLoading(false);
     }
   };
 
   const handleGuestLogin = () => {
-    // Skip authentication and go directly to menu
-    router.replace('/menu');
+    console.log('👤 Guest login - redirecting to /(tabs)/scene');
+    try {
+      router.replace('/(tabs)/scene');
+      console.log('✅ Guest redirect successful');
+    } catch (error) {
+      console.error('❌ Guest redirect failed:', error);
+    }
   };
+
+  // Show loading while checking auth status
+  if (authLoading) {
+    console.log('⏳ Showing auth loading screen');
+    return (
+      <View style={[styles.container, { backgroundColor: isDark ? '#000' : '#fff' }]}>
+        <ActivityIndicator 
+          size="large" 
+          color={isDark ? '#fff' : '#000'} 
+        />
+        <Text style={[styles.debugText, { color: isDark ? '#fff' : '#000' }]}>
+          Checking authentication...
+        </Text>
+      </View>
+    );
+  }
+
+  console.log('📱 Rendering login screen');
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
@@ -45,12 +103,24 @@ export default function Index() {
           Welcome! Please sign in to continue
         </Text>
 
+        {/* Debug Info */}
+        <View style={styles.debugContainer}>
+          <Text style={[styles.debugText, { color: isDark ? '#888' : '#666' }]}>
+            Debug: Auth={isAuthenticated ? 'Yes' : 'No'} | Loading={authLoading ? 'Yes' : 'No'}
+          </Text>
+        </View>
+
         {isLoading ? (
-          <ActivityIndicator 
-            size="large" 
-            color={isDark ? '#fff' : '#000'} 
-            style={styles.loader}
-          />
+          <>
+            <ActivityIndicator 
+              size="large" 
+              color={isDark ? '#fff' : '#000'} 
+              style={styles.loader}
+            />
+            <Text style={[styles.debugText, { color: isDark ? '#fff' : '#000' }]}>
+              Logging in...
+            </Text>
+          </>
         ) : (
           <>
             <TouchableOpacity
@@ -101,8 +171,18 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 18,
-    marginBottom: 60,
+    marginBottom: 40,
     textAlign: 'center',
+  },
+  debugContainer: {
+    marginBottom: 20,
+    padding: 10,
+    borderRadius: 5,
+  },
+  debugText: {
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 10,
   },
   loginButton: {
     width: 280,
