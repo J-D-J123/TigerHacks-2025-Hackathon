@@ -1,33 +1,25 @@
-
-// auth context will use Auth0 to login and manage user sessions 
-// and provide user info to the rest of the application 
-
+// AuthContext.tsx
+// Install: npm install react-native-auth0
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import Auth0 from 'react-native-auth0';
-import * as SecureStore from 'expo-secure-store';
 
 const auth0 = new Auth0({
-  domain: 'YOUR_AUTH0_DOMAIN', // e.g., 'dev-xxxxx.us.auth0.com'
-  clientId: 'YOUR_CLIENT_ID',
+  domain: 'dev-h3bhzbotlkitguzp.us.auth0.com',
+  clientId: 'EzzXPmewAewUEuZQdHnl8vyePdkAShze',
 });
 
-interface User {
-  name: string;
-  email: string;
-  picture: string;
-}
-
 interface AuthContextType {
-  user: User | null;
+  user: any | null;
   isLoading: boolean;
   login: () => Promise<void>;
   logout: () => Promise<void>;
+  isAuthenticated: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -36,13 +28,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const checkAuth = async () => {
     try {
-      const accessToken = await SecureStore.getItemAsync('accessToken');
-      if (accessToken) {
-        const userInfo = await auth0.auth.userInfo({ token: accessToken });
-        setUser(userInfo);
+      // Check if user has valid credentials stored
+      const credentials = await auth0.credentialsManager.getCredentials();
+      if (credentials) {
+        setUser(credentials.idToken);
       }
     } catch (error) {
-      console.error('Auth check failed:', error);
+      console.log('No valid session', error);
     } finally {
       setIsLoading(false);
     }
@@ -50,33 +42,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async () => {
     try {
+      setIsLoading(true);
       const credentials = await auth0.webAuth.authorize({
         scope: 'openid profile email',
       });
-
-      await SecureStore.setItemAsync('accessToken', credentials.accessToken);
       
-      const userInfo = await auth0.auth.userInfo({ token: credentials.accessToken });
-      setUser(userInfo);
+      await auth0.credentialsManager.saveCredentials(credentials);
+      setUser(credentials.idToken);
     } catch (error) {
-      console.error('Login failed:', error);
-      throw error;
+      console.error('Login error:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const logout = async () => {
     try {
+      setIsLoading(true);
       await auth0.webAuth.clearSession();
-      await SecureStore.deleteItemAsync('accessToken');
+      await auth0.credentialsManager.clearCredentials();
       setUser(null);
     } catch (error) {
-      console.error('Logout failed:', error);
-      throw error;
+      console.error('Logout error:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isLoading,
+        login,
+        logout,
+        isAuthenticated: !!user,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
