@@ -135,41 +135,43 @@ def draw_background(surface, t):
 
 
 def render_menu(surface, selected_idx, mouse_idx):
-    # ... (Rest of render_menu remains the same)
     w, h = surface.get_size()
-    # Title
+    
+    # --- Title ---
     title_font = pygame.font.Font(FONT_NAME, int(BASE_FONT_SIZE * 1.6))
     title_surf = title_font.render(TITLE, True, WHITE)
-    title_rect = title_surf.get_rect(center=(w / 2, h * 0.18))
+    title_rect = title_surf.get_rect(center=(w / 2, 0))  # temporary y=0 for rect size
+    title_top_margin = 40  # pixels from top
+    title_rect.top = title_top_margin
     surface.blit(title_surf, title_rect)
 
-    # Calculate menu layout based on window size
+    # --- Menu layout ---
     menu_font = pygame.font.Font(FONT_NAME, max(18, int(BASE_FONT_SIZE * (w / 800))))
     spacing = menu_font.get_linesize() * 1.6
     total_h = spacing * len(OPTIONS)
-    start_y = h / 2 - total_h / 2
+
+    # Center menu in the space below the title
+    available_height = h - (title_rect.bottom + 20)  # 20px padding below title
+    start_y = title_rect.bottom + 20 + (available_height - total_h) / 2
 
     for i, option in enumerate(OPTIONS):
-        text = option
-        surf = menu_font.render(text, True, WHITE)
+        surf = menu_font.render(option, True, WHITE)
         rect = surf.get_rect(center=(w / 2, start_y + i * spacing))
 
-        # Highlight logic
         if i == selected_idx:
             pad_x, pad_y = 18 * (w / 800), 8 * (h / 500)
             bg_rect = pygame.Rect(0, 0, rect.width + pad_x * 2, rect.height + pad_y * 2)
             bg_rect.center = rect.center
-            # Reduced alpha for ACCENT background highlight over image
-            pygame.draw.rect(surface, (*ACCENT, 120), bg_rect, border_radius=14) 
-
+            pygame.draw.rect(surface, (*ACCENT, 120), bg_rect, border_radius=14)
             sel_font = pygame.font.Font(FONT_NAME, int(menu_font.get_height() * 1.12))
-            surf = sel_font.render(text, True, (10, 10, 20))
+            surf = sel_font.render(option, True, (10, 10, 20))
             rect = surf.get_rect(center=bg_rect.center)
         elif i == mouse_idx:
-            surf = menu_font.render(text, True, ACCENT)
+            surf = menu_font.render(option, True, ACCENT)
             rect = surf.get_rect(center=(w / 2, start_y + i * spacing))
 
         surface.blit(surf, rect)
+
 
 
 def get_mouse_index(surface):
