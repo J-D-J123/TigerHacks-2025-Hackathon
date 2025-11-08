@@ -4,6 +4,7 @@ import pygame
 import math
 import sys
 from core import settings
+from core.store import open_store  # Import the store function
 
 
 pygame.init()
@@ -26,9 +27,10 @@ BG1 = settings.BG1
 BG2 = settings.BG2
 
 # --- Menu configuration ---
-OPTIONS = ["Start Game", "Settings", "Credits", "Quit"]
+OPTIONS = ["Start", "Store", "Settings", "Credits", "Quit"]
 OPTION_CALLBACKS = {
-    "Start Game": lambda: print("Start Game pressed"),
+    "Start": lambda: print("Start Game pressed"),
+    "Store": lambda: open_store(screen),
     "Settings": lambda: settings.open_settings(screen),
     "Credits": lambda: print("Credits pressed"),
     "Quit": lambda: sys.exit(0),
