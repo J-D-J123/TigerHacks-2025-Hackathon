@@ -1,11 +1,17 @@
-# menu.py — Main Menu for Spaceship Launch Game
+# menu.py — Main Menu for Spaceship Launch Game + Retro Rocket integration
 
 import pygame
 import math
 import sys
 from core import settings
 from core.store import open_store  # Import the store function
+from retro_rocket import start_game as launch_rocket_game  # import the real one safely
 
+def launch_retro_rocket():
+    pygame.quit()  # clean any leftover state
+    launch_rocket_game()
+    pygame.init()  # re-init Pygame for menu
+    pygame.display.set_mode((WIDTH, HEIGHT), pygame.RESIZABLE)
 
 pygame.init()
 
@@ -28,8 +34,9 @@ BG2 = settings.BG2
 
 # --- Menu configuration ---
 OPTIONS = ["Start", "Store", "Settings", "Credits", "Quit"]
+
 OPTION_CALLBACKS = {
-    "Start": lambda: print("Start Game pressed"),
+    "Start": launch_retro_rocket,
     "Store": lambda: open_store(screen),
     "Settings": lambda: settings.open_settings(screen),
     "Credits": lambda: print("Credits pressed"),
@@ -143,7 +150,6 @@ def main():
 
         pygame.display.flip()
         clock.tick(FPS)
-
 
 if __name__ == "__main__":
     main()
