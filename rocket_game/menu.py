@@ -62,19 +62,28 @@ def scale_image_to_fit(image, target_size):
 
 def launch_retro_rocket():
     """Launches the rocket game and re-initializes Pygame for the menu."""
-    pygame.quit()  # clean any leftover state
-    launch_rocket_game()
+    # Don't quit pygame here - let the game handle its own cleanup
+    try:
+        launch_rocket_game()
+    except Exception as e:
+        print(f"Game error: {e}")
     
-    # --- Re-init Pygame for menu ---
-    pygame.init()
-    # Re-init screen and set a new random background
+    # Re-init Pygame for menu if needed
+    if not pygame.get_init():
+        pygame.init()
+    
+    # Re-create the display
     global screen
-    # Re-use the last size
-    w, h = screen.get_size() 
-    screen = pygame.display.set_mode((w, h), pygame.RESIZABLE) 
+    try:
+        w, h = screen.get_size()
+    except:
+        # If screen is invalid, use default size
+        w, h = WIDTH, HEIGHT
+        
+    screen = pygame.display.set_mode((w, h), pygame.RESIZABLE)
     pygame.display.set_caption(settings.WINDOW_TITLE)
     set_random_background(screen) # Set a new random background after returning
-
+    
 pygame.init()
 
 # --- Setup ---
