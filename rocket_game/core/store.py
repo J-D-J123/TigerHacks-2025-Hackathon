@@ -247,8 +247,30 @@ def draw_progress_bar(screen, x, y, width, height, progress, color, bg_color):
     # Border
     pygame.draw.rect(screen, WHITE, (x, y, width, height), 2, border_radius=height//2)
 
-# Draw upgrade card with modern design
-def draw_upgrade_card(screen, font, small_font, store_data, upgrade_key, idx, selected_idx, mx, my):
+# Draw scroll bar
+def draw_scroll_bar(screen, scroll_offset, max_scroll, visible_area_height, total_content_height):
+    if max_scroll <= 0:
+        return
+    
+    screen_width, screen_height = screen.get_size()
+    
+    # Scroll bar dimensions
+    bar_width = 12
+    bar_x = screen_width - bar_width - 10
+    bar_height = visible_area_height * (visible_area_height / total_content_height)
+    bar_y = 10 + (scroll_offset / max_scroll) * (visible_area_height - bar_height)
+    
+    # Draw scroll bar track
+    track_rect = pygame.Rect(bar_x, 10, bar_width, visible_area_height)
+    pygame.draw.rect(screen, (60, 60, 80), track_rect, border_radius=6)
+    
+    # Draw scroll bar thumb
+    thumb_rect = pygame.Rect(bar_x, bar_y, bar_width, bar_height)
+    pygame.draw.rect(screen, NEON_BLUE, thumb_rect, border_radius=6)
+    pygame.draw.rect(screen, WHITE, thumb_rect, 1, border_radius=6)
+
+# Draw upgrade card with modern design and scroll support
+def draw_upgrade_card(screen, font, small_font, store_data, upgrade_key, idx, selected_idx, mx, my, scroll_offset):
     upgrade = UPGRADES[upgrade_key]
     current_level = store_data[upgrade_key]
     max_level = upgrade["max_level"]
@@ -256,7 +278,11 @@ def draw_upgrade_card(screen, font, small_font, store_data, upgrade_key, idx, se
     card_width = 900
     card_height = 80
     x = (screen.get_width() - card_width) // 2
-    y = 180 + idx * 100
+    y = 180 + idx * 100 - scroll_offset
+    
+    # Skip drawing if card is completely outside visible area
+    if y + card_height < 0 or y > screen.get_height():
+        return None
     
     card_rect = pygame.Rect(x, y, card_width, card_height)
     is_hovered = card_rect.collidepoint(mx, my)
@@ -282,8 +308,6 @@ def draw_upgrade_card(screen, font, small_font, store_data, upgrade_key, idx, se
     screen.blit(card_surface, (x, y))
     
     # Icon and name
-    # The icon is an emoji, which may not render correctly with a custom font that doesn't include it.
-    # It's kept as-is but be aware of potential rendering issues for non-standard characters.
     try:
         icon_text = small_font.render(upgrade["icon"], True, WHITE)
         screen.blit(icon_text, (x + 20, y + 20))
@@ -333,8 +357,8 @@ def draw_upgrade_card(screen, font, small_font, store_data, upgrade_key, idx, se
     
     return card_rect
 
-# Draw battle pass section
-def draw_battle_pass(screen, font, small_font, store_data, mx, my):
+# Draw battle pass section with scroll support
+def draw_battle_pass(screen, font, small_font, store_data, mx, my, scroll_offset):
     # Ensure battle pass fields exist
     if 'battle_pass_level' not in store_data:
         store_data['battle_pass_level'] = 1
@@ -344,7 +368,12 @@ def draw_battle_pass(screen, font, small_font, store_data, mx, my):
         store_data['battle_pass_premium'] = False
     
     # Battle pass header
-    header_rect = pygame.Rect(50, 180, screen.get_width() - 100, 120) # Adjusted Y and height for better layout
+    header_y = 180 - scroll_offset
+    # Skip drawing if header is completely outside visible area
+    if header_y + 120 < 0 or header_y > screen.get_height():
+        return None
+    
+    header_rect = pygame.Rect(50, header_y, screen.get_width() - 100, 120)
     pygame.draw.rect(screen, BG3, header_rect, border_radius=12)
     pygame.draw.rect(screen, NEON_PURPLE, header_rect, 2, border_radius=12)
     
@@ -375,13 +404,15 @@ def draw_battle_pass(screen, font, small_font, store_data, mx, my):
     premium_button = None
     if not store_data["battle_pass_premium"]:
         premium_button = pygame.Rect(header_rect.right - 180, header_rect.y + 40, 160, 30)
-        premium_hovered = premium_button.collidepoint(mx, my)
-        draw_button(screen, premium_button, "UPGRADE: 1500 💰", small_font, NEON_PURPLE, (200, 100, 255), premium_hovered)
+        # Only return button if it's visible
+        if premium_button.bottom > 0 and premium_button.top < screen.get_height():
+            premium_hovered = premium_button.collidepoint(mx, my)
+            draw_button(screen, premium_button, "UPGRADE: 1500 💰", small_font, NEON_PURPLE, (200, 100, 255), premium_hovered)
     
     return premium_button
 
-# Draw battle pass rewards
-def draw_battle_pass_rewards(screen, font, small_font, store_data):
+# Draw battle pass rewards with scroll support
+def draw_battle_pass_rewards(screen, font, small_font, store_data, scroll_offset):
     # Ensure battle pass fields exist
     if 'battle_pass_level' not in store_data:
         store_data['battle_pass_level'] = 1
@@ -389,7 +420,12 @@ def draw_battle_pass_rewards(screen, font, small_font, store_data):
     current_level = store_data['battle_pass_level']
     
     # Rewards container
-    rewards_rect = pygame.Rect(50, 320, screen.get_width() - 100, 300)
+    rewards_y = 320 - scroll_offset
+    # Skip drawing if rewards are completely outside visible area
+    if rewards_y + 300 < 0 or rewards_y > screen.get_height():
+        return
+    
+    rewards_rect = pygame.Rect(50, rewards_y, screen.get_width() - 100, 300)
     pygame.draw.rect(screen, BG2, rewards_rect, border_radius=12)
     pygame.draw.rect(screen, NEON_BLUE, rewards_rect, 2, border_radius=12)
     
@@ -478,10 +514,26 @@ def open_store(screen):
     # Tab system
     current_tab = "upgrades"  # "upgrades" or "battle_pass"
     
+    # Scrolling variables
+    scroll_offset = 0
+    scroll_speed = 30
+    max_scroll = 0
+    
     while True:
         dt = clock.tick(FPS) / 1000.0
         time += dt
         mx, my = pygame.mouse.get_pos()
+        
+        # Calculate max scroll based on current tab
+        if current_tab == "upgrades":
+            total_content_height = len(upgrade_keys) * 100  # 100px per card
+            visible_area_height = screen.get_height() - 180  # Space above cards
+            max_scroll = max(0, total_content_height - visible_area_height)
+        else:
+            # Battle pass content height
+            total_content_height = 500  # Header + rewards
+            visible_area_height = screen.get_height() - 180
+            max_scroll = max(0, total_content_height - visible_area_height)
         
         # Update message timer
         if message_timer > 0:
@@ -494,9 +546,10 @@ def open_store(screen):
         # Get premium button rect for event handling
         premium_button_rect = None
         if current_tab == "battle_pass" and not store_data.get("battle_pass_premium", False):
-            # Calculate rect manually since draw_battle_pass returns the rect
-            header_rect = pygame.Rect(50, 180, screen.get_width() - 100, 120)
-            premium_button_rect = pygame.Rect(header_rect.right - 180, header_rect.y + 40, 160, 30)
+            header_y = 180 - scroll_offset
+            if header_y + 120 > 0 and header_y < screen.get_height():
+                header_rect = pygame.Rect(50, header_y, screen.get_width() - 100, 120)
+                premium_button_rect = pygame.Rect(header_rect.right - 180, header_rect.y + 40, 160, 30)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -512,27 +565,46 @@ def open_store(screen):
                 # Tab switching
                 if event.key == pygame.K_1:
                     current_tab = "upgrades"
+                    scroll_offset = 0  # Reset scroll when switching tabs
                 elif event.key == pygame.K_2:
                     current_tab = "battle_pass"
+                    scroll_offset = 0  # Reset scroll when switching tabs
                     
                 if current_tab == "upgrades":
                     if event.key in (pygame.K_DOWN, pygame.K_s):
                         selected = (selected + 1) % len(upgrade_keys)
+                        # Auto-scroll if selected item is out of view
+                        selected_y = 180 + selected * 100
+                        if selected_y - scroll_offset > screen.get_height() - 150:
+                            scroll_offset = min(max_scroll, selected_y - (screen.get_height() - 150))
+                        elif selected_y - scroll_offset < 180:
+                            scroll_offset = max(0, selected_y - 180)
                     elif event.key in (pygame.K_UP, pygame.K_w):
                         selected = (selected - 1) % len(upgrade_keys)
+                        # Auto-scroll if selected item is out of view
+                        selected_y = 180 + selected * 100
+                        if selected_y - scroll_offset < 180:
+                            scroll_offset = max(0, selected_y - 180)
+                        elif selected_y - scroll_offset > screen.get_height() - 150:
+                            scroll_offset = min(max_scroll, selected_y - (screen.get_height() - 150))
                     elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
                         success, msg = purchase_upgrade(store_data, upgrade_keys[selected])
                         message = msg
                         message_timer = 120  # 2 seconds at 60 FPS
                         message_color = GREEN if success else RED
-                
+            
+            # Mouse wheel scrolling
+            if event.type == pygame.MOUSEWHEEL:
+                scroll_offset = max(0, min(max_scroll, scroll_offset - event.y * scroll_speed))
             
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 # Tab clicks
                 if upgrades_tab_rect.collidepoint(mx, my):
                     current_tab = "upgrades"
+                    scroll_offset = 0
                 elif battle_pass_tab_rect.collidepoint(mx, my):
                     current_tab = "battle_pass"
+                    scroll_offset = 0
                 
                 if current_tab == "upgrades":
                     # Check if clicked on an upgrade button
@@ -541,20 +613,23 @@ def open_store(screen):
                         card_width = 900
                         card_height = 80
                         x = (screen.get_width() - card_width) // 2
-                        y = 180 + i * 100
-                        button_rect = pygame.Rect(x + card_width - 180, y + 20, 160, 40)
+                        y = 180 + i * 100 - scroll_offset
                         
-                        if button_rect.collidepoint(mx, my):
-                            success, msg = purchase_upgrade(store_data, key)
-                            message = msg
-                            message_timer = 120
-                            message_color = GREEN if success else RED
-                            break
-                        
-                        # Also handle clicking anywhere on the card to select it
-                        card_rect = pygame.Rect(x, y, card_width, card_height)
-                        if card_rect.collidepoint(mx, my):
-                            selected = i
+                        # Only process click if card is visible
+                        if y + card_height >= 0 and y <= screen.get_height():
+                            button_rect = pygame.Rect(x + card_width - 180, y + 20, 160, 40)
+                            
+                            if button_rect.collidepoint(mx, my):
+                                success, msg = purchase_upgrade(store_data, key)
+                                message = msg
+                                message_timer = 120
+                                message_color = GREEN if success else RED
+                                break
+                            
+                            # Also handle clicking anywhere on the card to select it
+                            card_rect = pygame.Rect(x, y, card_width, card_height)
+                            if card_rect.collidepoint(mx, my):
+                                selected = i
 
                 elif current_tab == "battle_pass":
                     # Check if clicked on premium battle pass button
@@ -588,23 +663,31 @@ def open_store(screen):
         
         # Draw content based on current tab
         if current_tab == "upgrades":
-            # Draw upgrades
+            # Draw upgrades with scroll
             for i, key in enumerate(upgrade_keys):
-                draw_upgrade_card(screen, font, small_font, store_data, key, i, selected, mx, my)
+                draw_upgrade_card(screen, font, small_font, store_data, key, i, selected, mx, my, scroll_offset)
+            
+            # Draw scroll bar if needed
+            if max_scroll > 0:
+                visible_area_height = screen.get_height() - 180
+                total_content_height = len(upgrade_keys) * 100
+                draw_scroll_bar(screen, scroll_offset, max_scroll, visible_area_height, total_content_height)
+                
         elif current_tab == "battle_pass":
-            # Draw battle pass
-            draw_battle_pass(screen, font, small_font, store_data, mx, my)
-            draw_battle_pass_rewards(screen, font, small_font, store_data)
+            # Draw battle pass with scroll
+            premium_button_rect = draw_battle_pass(screen, font, small_font, store_data, mx, my, scroll_offset)
+            draw_battle_pass_rewards(screen, font, small_font, store_data, scroll_offset)
+            
+            # Draw scroll bar if needed
+            if max_scroll > 0:
+                visible_area_height = screen.get_height() - 180
+                total_content_height = 500
+                draw_scroll_bar(screen, scroll_offset, max_scroll, visible_area_height, total_content_height)
         
         # Message
         if message_timer > 0:
             msg_surf = font.render(message, True, message_color)
-            screen.blit(msg_surf, (screen.get_width() // 2 - msg_surf.get_width() // 2, screen.get_height() - 100))
-        
-        # Instructions
-        hint_text = "ESC to return — SPACE/ENTER or CLICK buy to upgrade — Arrow keys to navigate upgrades — 1/2 or CLICK tabs to switch"
-        hint = small_font.render(hint_text, True, GRAY)
-        screen.blit(hint, (screen.get_width() // 2 - hint.get_width() // 2, screen.get_height() - 40))
+            screen.blit(msg_surf, (screen.get_width() // 2 - msg_surf.get_width() // 2, screen.get_height() - 60))
         
         pygame.display.flip()
 
@@ -617,5 +700,4 @@ def get_upgrade_button_rect(screen, idx):
     y = 180 + idx * 100
     # Returns the entire card rect now, but the original intent was the button.
     # The actual buy button is at: pygame.Rect(x + card_width - 180, y + 20, 160, 40)
-    return pygame.Rect(x, y, card_width, card_height) 
-
+    return pygame.Rect(x, y, card_width, card_height)
