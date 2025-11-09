@@ -127,19 +127,28 @@ def draw_background(surface, t):
 
 def render_menu(surface, selected_idx, mouse_idx):
     w, h = surface.get_size()
+    
+    # --- Title ---
     title_font = pygame.font.Font(FONT_NAME, int(BASE_FONT_SIZE * 1.6))
     title_surf = title_font.render(TITLE, True, WHITE)
-    title_rect = title_surf.get_rect(center=(w / 2, 0))
-    title_rect.top = 40
+    title_rect = title_surf.get_rect(center=(w / 2, 0))  # temporary y=0 for rect size
+    title_top_margin = 40  # pixels from top
+    title_rect.top = title_top_margin
     surface.blit(title_surf, title_rect)
+
+    # --- Menu layout ---
     menu_font = pygame.font.Font(FONT_NAME, max(18, int(BASE_FONT_SIZE * (w / 800))))
     spacing = menu_font.get_linesize() * 1.6
     total_h = spacing * len(OPTIONS)
-    available_height = h - (title_rect.bottom + 20)
+
+    # Center menu in the space below the title
+    available_height = h - (title_rect.bottom + 20)  # 20px padding below title
     start_y = title_rect.bottom + 20 + (available_height - total_h) / 2
+
     for i, option in enumerate(OPTIONS):
         surf = menu_font.render(option, True, WHITE)
         rect = surf.get_rect(center=(w / 2, start_y + i * spacing))
+
         if i == selected_idx:
             pad_x, pad_y = 18 * (w / 800), 8 * (h / 500)
             bg_rect = pygame.Rect(0, 0, rect.width + pad_x * 2, rect.height + pad_y * 2)
@@ -151,20 +160,47 @@ def render_menu(surface, selected_idx, mouse_idx):
         elif i == mouse_idx:
             surf = menu_font.render(option, True, ACCENT)
             rect = surf.get_rect(center=(w / 2, start_y + i * spacing))
+
         surface.blit(surf, rect)
 
 def get_mouse_index(surface):
     mx, my = pygame.mouse.get_pos()
     w, h = surface.get_size()
+    
+    # --- Title calculation (must match render_menu) ---
+    title_font = pygame.font.Font(FONT_NAME, int(BASE_FONT_SIZE * 1.6))
+    title_surf = title_font.render(TITLE, True, WHITE)
+    title_rect = title_surf.get_rect(center=(w / 2, 0))
+    title_top_margin = 40
+    title_rect.top = title_top_margin
+    
+    # --- Menu layout (must match render_menu exactly) ---
     menu_font = pygame.font.Font(FONT_NAME, max(18, int(BASE_FONT_SIZE * (w / 800))))
     spacing = menu_font.get_linesize() * 1.6
     total_h = spacing * len(OPTIONS)
-    start_y = h / 2 - total_h / 2
+    
+    # Center menu in the space below the title (must match render_menu)
+    available_height = h - (title_rect.bottom + 20)
+    start_y = title_rect.bottom + 20 + (available_height - total_h) / 2
+    
+    # Check each menu item position
     for i in range(len(OPTIONS)):
-        rect = pygame.Rect(0, 0, w * 0.6, spacing)
-        rect.center = (w / 2, start_y + i * spacing)
-        if rect.collidepoint(mx, my):
+        # Calculate the exact position of this menu item
+        item_y = start_y + i * spacing
+        text_surf = menu_font.render(OPTIONS[i], True, WHITE)
+        text_rect = text_surf.get_rect(center=(w / 2, item_y))
+        
+        # Create a slightly larger hit area for better usability
+        hit_rect = pygame.Rect(
+            text_rect.left - 20,
+            text_rect.top - 5,
+            text_rect.width + 40,
+            text_rect.height + 10
+        )
+        
+        if hit_rect.collidepoint(mx, my):
             return i
+    
     return None
 
 def main():
@@ -194,6 +230,7 @@ def main():
                 mi = get_mouse_index(screen)
                 if mi is not None:
                     OPTION_CALLBACKS.get(OPTIONS[mi], lambda: None)()
+        
         mouse_idx = get_mouse_index(screen)
         draw_background(screen, t)
         render_menu(screen, selected, mouse_idx)
