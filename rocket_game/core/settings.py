@@ -7,7 +7,7 @@ import os
 SCREEN_WIDTH = 960
 SCREEN_HEIGHT = 540
 FPS = 60
-WINDOW_TITLE = "Spaceship Launch Game"
+WINDOW_TITLE = "Space Surival"
 
 # --- Colors ---
 WHITE = (245, 245, 245)
@@ -34,8 +34,6 @@ SETTINGS_FILE = "settings.json"
 default_settings = {
     "music_volume": 0.5,
     "sfx_volume": 0.7,
-    "gravity": 0.3,
-    "thrust_power": 8
 }
 
 # --- Load or initialize settings ---
@@ -47,8 +45,6 @@ else:
 
 MUSIC_VOLUME = data.get("music_volume", 0.5)
 SFX_VOLUME = data.get("sfx_volume", 0.7)
-GRAVITY = data.get("gravity", 0.3)
-THRUST_POWER = data.get("thrust_power", 8)
 
 
 def save_settings():
@@ -56,8 +52,6 @@ def save_settings():
         json.dump({
             "music_volume": MUSIC_VOLUME,
             "sfx_volume": SFX_VOLUME,
-            "gravity": GRAVITY,
-            "thrust_power": THRUST_POWER
         }, f, indent=4)
 
 
@@ -70,8 +64,6 @@ def open_settings(screen):
     options = [
         {"label": "Music Volume", "value": lambda: MUSIC_VOLUME, "min": 0, "max": 1, "step": 0.01},
         {"label": "SFX Volume", "value": lambda: SFX_VOLUME, "min": 0, "max": 1, "step": 0.01},
-        {"label": "Gravity", "value": lambda: GRAVITY, "min": 0.1, "max": 2.0, "step": 0.01},
-        {"label": "Thrust Power", "value": lambda: THRUST_POWER, "min": 1, "max": 20, "step": 0.1},
     ]
 
     selected = 0
@@ -173,12 +165,8 @@ def adjust_option(option, direction):
 
 
 def set_option(option, val):
-    global MUSIC_VOLUME, SFX_VOLUME, GRAVITY, THRUST_POWER
+    global MUSIC_VOLUME, SFX_VOLUME
     if option["label"] == "Music Volume":
         MUSIC_VOLUME = val
     elif option["label"] == "SFX Volume":
         SFX_VOLUME = val
-    elif option["label"] == "Gravity":
-        GRAVITY = val
-    elif option["label"] == "Thrust Power":
-        THRUST_POWER = val
