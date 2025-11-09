@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from core import settings
 from core.store import open_store
+from core.store import load_store_data 
 from retro_rocket import start_game as launch_rocket_game
 
 # --- Image and Background Management ---
@@ -103,7 +104,7 @@ BG2 = settings.BG2
 load_images()
 
 # --- Menu configuration ---
-OPTIONS = ["Start", "Store", "Settings", "Credits", "Quit"]
+OPTIONS = ["Start", "Store", "Settings", "Credits"]
 
 
 def show_credits_popup(surface):
@@ -213,6 +214,8 @@ def get_mouse_index(surface):
 
 
 def main():
+
+    store_data = load_store_data()
     selected = 0
     t = 0.0
     while True:
@@ -253,8 +256,14 @@ def main():
         reset_font = pygame.font.Font(FONT_NAME, 20)
         reset_text = reset_font.render("Reset", True, WHITE)
         reset_rect = pygame.Rect(10, 10, 80, 30)
-        pygame.draw.rect(screen, (*ACCENT, 180), reset_rect, border_radius=6)
+        # pygame.draw.rect(screen, (*ACCENT, 180), reset_rect, border_radius=6)
         screen.blit(reset_text, (reset_rect.x + 8, reset_rect.y + 5))
+
+        # --- Draw credits Button --- 
+        credits_font = pygame.font.Font(FONT_NAME, 20)
+        credits_text = credits_font.render(f"Credits: {store_data['credits']}", True, (255, 215, 0))  # gold color
+        credits_rect = credits_text.get_rect(topright=(screen.get_width() - 10, 10))
+        screen.blit(credits_text, credits_rect)
 
         pygame.display.flip()
         clock.tick(FPS)

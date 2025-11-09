@@ -1,6 +1,6 @@
 """
 retro_rocket.py
-Optimized retro rocket game with clean UI and weather events
+Optimized retro rocket game with clean UI, weather events, and audio
 """
 
 import pygame
@@ -8,6 +8,7 @@ import math
 import random
 import json
 from pathlib import Path
+import os
 
 # Constants
 SCREEN_W, SCREEN_H = 960, 640
@@ -18,9 +19,12 @@ THRUST, DRAG = 220.0, 0.98
 NEAR_MISS_RADIUS, NEAR_MISS_POINTS, NEAR_MISS_COOLDOWN = 50.0, 25, 1.0
 CREDITS_CONVERSION_RATE = 5
 SAVE_FILE = "store_data.json"
-WEATHER_START_TIME = 30.0  # Weather events start after 30 seconds
-SOLAR_FLARE_WARNING_TIME = 2.0  # Warning time before flare hits
+WAVE_BASE_DURATION = 30.0
+WAVE_INCREMENT = 30.0
+SOLAR_FLARE_WARNING_TIME = 2.0
 SHOOTING_STAR_SPEED = 400.0
+MUSIC_FOLDER = "assets/audio/music"
+GUN_SOUND_PATH = "assets/audio/gun.mp3"
 
 # Colors
 BLACK, WHITE = (8, 10, 20), (240, 240, 240)
@@ -34,7 +38,6 @@ def wrap_pos(x, y):
     return x % SCREEN_W, y % SCREEN_H
 
 def wrap_text(text, font, max_width):
-    """Wrap text to fit within max_width."""
     words, lines, current_line = text.split(' '), [], []
     for word in words:
         test_line = ' '.join(current_line + [word])
@@ -63,6 +66,19 @@ def save_save(state):
     except Exception as e: print("Failed to save:", e)
 
 def points_to_credits(points): return points // CREDITS_CONVERSION_RATE
+
+def get_random_music_file():
+    try:
+        music_path = Path(MUSIC_FOLDER)
+        if music_path.exists():
+            music_files = [f for f in music_path.glob("*.mp3")]
+            music_files.extend(music_path.glob("*.ogg"))
+            music_files.extend(music_path.glob("*.wav"))
+            if music_files:
+                return str(random.choice(music_files))
+    except Exception as e:
+        print(f"Error finding music files: {e}")
+    return None
 
 # Game Classes
 class Bullet:
@@ -146,12 +162,12 @@ class SolarFlare:
             if self.radius >= self.max_radius: self.alive = False
     def draw(self, surf):
         if not self.alive: return
-        if not self.active:  # Warning phase
+        if not self.active:
             alpha = int(128 + 127 * math.sin(pygame.time.get_ticks() / 100))
             s = pygame.Surface((self.max_radius * 2, self.max_radius * 2), pygame.SRCALPHA)
             pygame.draw.circle(s, (255, 255, 0, alpha), (int(self.max_radius), int(self.max_radius)), int(self.max_radius), 3)
             surf.blit(s, (int(self.x - self.max_radius), int(self.y - self.max_radius)))
-        else:  # Active phase
+        else:
             alpha = int(200 * (1 - self.radius / self.max_radius))
             s = pygame.Surface((self.radius * 2, self.radius * 2), pygame.SRCALPHA)
             pygame.draw.circle(s, (255, 200, 50, alpha), (int(self.radius), int(self.radius)), int(self.radius))
@@ -165,16 +181,16 @@ class ShootingStar:
     def __init__(self): self.alive = False
     def spawn(self):
         edge = random.choice([0, 1, 2, 3])
-        if edge == 0:  # Left
+        if edge == 0:
             self.x, self.y = -10, random.uniform(0, SCREEN_H)
             angle = random.uniform(-math.pi/4, math.pi/4)
-        elif edge == 1:  # Right
+        elif edge == 1:
             self.x, self.y = SCREEN_W + 10, random.uniform(0, SCREEN_H)
             angle = random.uniform(3*math.pi/4, 5*math.pi/4)
-        elif edge == 2:  # Top
+        elif edge == 2:
             self.x, self.y = random.uniform(0, SCREEN_W), -10
             angle = random.uniform(math.pi/4, 3*math.pi/4)
-        else:  # Bottom
+        else:
             self.x, self.y = random.uniform(0, SCREEN_W), SCREEN_H + 10
             angle = random.uniform(-3*math.pi/4, -math.pi/4)
         self.vx, self.vy = math.cos(angle) * SHOOTING_STAR_SPEED, math.sin(angle) * SHOOTING_STAR_SPEED
@@ -222,6 +238,7 @@ class Ship:
 class Game:
     def __init__(self):
         pygame.init()
+        pygame.mixer.init()
         self.screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
         pygame.display.set_caption("Retro Rocket")
         self.clock = pygame.time.Clock()
@@ -237,6 +254,36 @@ class Game:
         self.highscore, self.credits = save_data.get("highscore", 0), save_data.get("credits", 0)
         self.last_shot, self.shot_cooldown, self.should_return_to_menu = 0.0, 0.14, False
         self.game_time, self.weather_timer = 0.0, 0.0
+        self.current_wave = 1
+        self.wave_time = 0.0
+        
+        self.gun_sound = None
+        self.load_sounds()
+        self.play_random_music()
+        pygame.mixer.music.set_endevent(pygame.USEREVENT)
+
+    def load_sounds(self):
+        try:
+            if Path(GUN_SOUND_PATH).exists():
+                self.gun_sound = pygame.mixer.Sound(GUN_SOUND_PATH)
+                self.gun_sound.set_volume(0.3)
+            else:
+                print(f"Gun sound not found at {GUN_SOUND_PATH}")
+        except Exception as e:
+            print(f"Error loading gun sound: {e}")
+
+    def play_random_music(self):
+        music_file = get_random_music_file()
+        if music_file:
+            try:
+                pygame.mixer.music.load(music_file)
+                pygame.mixer.music.set_volume(0.4)
+                pygame.mixer.music.play()
+                print(f"Now playing: {Path(music_file).name}")
+            except Exception as e:
+                print(f"Error playing music: {e}")
+        else:
+            print("No music files found in music folder")
 
     def update_font_sizes(self):
         screen_width = self.screen.get_width()
@@ -251,10 +298,13 @@ class Game:
             obj.alive = False
         self.spawn_timer, self.state, self.paused, self.should_return_to_menu = 0.0, "playing", False, False
         self.game_time, self.weather_timer = 0.0, 0.0
+        self.current_wave = 1
+        self.wave_time = 0.0
 
     def return_to_menu(self):
         self.credits += points_to_credits(self.ship.score)
         save_save({"highscore": self.highscore, "credits": self.credits})
+        pygame.mixer.music.stop()  # Stop music when returning to menu
         self.should_return_to_menu = True
 
     def spawn_meteor(self):
@@ -267,6 +317,8 @@ class Game:
                 ax, ay = math.cos(self.ship.angle), math.sin(self.ship.angle)
                 b.spawn(self.ship.x + ax * (SHIP_RADIUS + 6), self.ship.y + ay * (SHIP_RADIUS + 6),
                         self.ship.vx + ax * BULLET_SPEED, self.ship.vy + ay * BULLET_SPEED)
+                if self.gun_sound:
+                    self.gun_sound.play()
                 break
 
     def spawn_near_miss_effect(self, x, y, points):
@@ -286,16 +338,21 @@ class Game:
     def update(self, dt):
         if self.state in ["menu", "gameover"] or self.paused: return
         
-        # Update game time
         self.game_time += dt
+        self.wave_time += dt
         
-        # Update objects
+        current_wave_duration = WAVE_BASE_DURATION + (self.current_wave - 1) * WAVE_INCREMENT
+        
+        if self.wave_time >= current_wave_duration:
+            self.current_wave += 1
+            self.wave_time = 0.0
+        
         self.ship.update(dt)
         for obj in self.bullets + self.meteors + self.near_miss_effects + self.solar_flares + self.shooting_stars: 
             obj.update(dt)
 
-        # Weather events after 30 seconds
-        if self.game_time >= WEATHER_START_TIME:
+        # Weather events only spawn after Wave 1
+        if self.current_wave > 1:
             self.weather_timer += dt
             if self.weather_timer >= random.uniform(3.0, 7.0):
                 self.weather_timer = 0.0
@@ -307,7 +364,6 @@ class Game:
                     for star in self.shooting_stars:
                         if not star.alive: star.spawn(); break
 
-        # Bullet vs meteor collision
         for b in self.bullets:
             if not b.alive: continue
             for m in self.meteors:
@@ -319,7 +375,6 @@ class Game:
                         if self.ship.score > self.highscore: self.highscore = self.ship.score
                     break
 
-        # Weather hazard collisions
         for flare in self.solar_flares:
             if flare.check_collision(self.ship.x, self.ship.y):
                 self.ship.lives -= 1
@@ -340,14 +395,13 @@ class Game:
                 if self.ship.lives <= 0: self.ship.alive = False; self.state = "gameover"
                 break
 
-        # Ship collision and near misses
         for m in self.meteors:
             if not m.alive: continue
             dx, dy = self.ship.x - m.x, self.ship.y - m.y
             dist_sq = dx*dx + dy*dy
             collision_dist = SHIP_RADIUS + m.r
             
-            if dist_sq <= collision_dist**2:  # Collision
+            if dist_sq <= collision_dist**2:
                 m.alive = False
                 self.ship.lives -= 1
                 self.ship.x, self.ship.y = SCREEN_W * 0.5, SCREEN_H * 0.5
@@ -355,13 +409,12 @@ class Game:
                 self.ship.angle, self.ship.thrusting = -math.pi / 2, False
                 if self.ship.lives <= 0: self.ship.alive = False; self.state = "gameover"
             
-            elif dist_sq <= NEAR_MISS_RADIUS**2 and m.last_near_miss >= NEAR_MISS_COOLDOWN:  # Near miss
+            elif dist_sq <= NEAR_MISS_RADIUS**2 and m.last_near_miss >= NEAR_MISS_COOLDOWN:
                 self.ship.score += NEAR_MISS_POINTS
                 if self.ship.score > self.highscore: self.highscore = self.ship.score
                 self.spawn_near_miss_effect((self.ship.x + m.x) / 2, (self.ship.y + m.y) / 2, NEAR_MISS_POINTS)
                 m.last_near_miss = 0.0
 
-        # Spawn meteors
         self.spawn_timer += dt
         if self.spawn_timer >= 0.6:
             self.spawn_timer = 0
@@ -369,23 +422,36 @@ class Game:
                 self.spawn_meteor()
 
     def draw_hud(self):
-        """Draw HUD without blue backgrounds"""
         self.update_font_sizes()
         screen_width = self.screen.get_width()
         
-        # Draw timer at top center
-        timer_text = f"TIME: {int(self.game_time)}s"
-        timer_surf = self.bigfont.render(timer_text, True, JARVIS_TEXT)
-        timer_rect = timer_surf.get_rect(center=(screen_width // 2, 20))
-        self.screen.blit(timer_surf, timer_rect)
+        current_wave_duration = WAVE_BASE_DURATION + (self.current_wave - 1) * WAVE_INCREMENT
+        wave_progress = min(1.0, self.wave_time / current_wave_duration)
         
-        # Draw text directly on screen (no background panels)
+        wave_text = f"WAVE {self.current_wave}"
+        wave_surf = self.bigfont.render(wave_text, True, JARVIS_TEXT)
+        wave_rect = wave_surf.get_rect(center=(screen_width // 2, 20))
+        self.screen.blit(wave_surf, wave_rect)
+        
+        bar_width = 300
+        bar_height = 20
+        bar_x = (screen_width - bar_width) // 2
+        bar_y = 45
+        
+        pygame.draw.rect(self.screen, (40, 40, 60), (bar_x, bar_y, bar_width, bar_height), border_radius=10)
+        
+        fill_width = int(bar_width * wave_progress)
+        if fill_width > 0:
+            fill_color = (80, 200, 120) if wave_progress < 0.8 else (255, 165, 0) if wave_progress < 0.95 else (220, 70, 70)
+            pygame.draw.rect(self.screen, fill_color, (bar_x, bar_y, fill_width, bar_height), border_radius=10)
+        
+        pygame.draw.rect(self.screen, JARVIS_TEXT, (bar_x, bar_y, bar_width, bar_height), 2, border_radius=10)
+        
         self.screen.blit(self.font.render(f"SCORE: {self.ship.score}", True, JARVIS_TEXT), (20, 15))
         self.screen.blit(self.font.render(f"HIGH: {self.highscore}", True, JARVIS_TEXT), (20, 15 + self.base_font_size + 5))
         self.screen.blit(self.font.render(f"CREDITS: {self.credits}", True, JARVIS_TEXT), (20, 15 + (self.base_font_size + 5) * 2))
         self.screen.blit(self.font.render(f"LIVES: {self.ship.lives}", True, JARVIS_TEXT), (screen_width - 120, 15))
         
-        # Draw ship icons for lives
         ship_size = max(6, int(screen_width * 0.006))
         for i in range(self.ship.lives):
             x = screen_width - 40 - i * (ship_size * 2)
@@ -394,11 +460,9 @@ class Game:
                               [(x, y), (x + ship_size, y + ship_size), (x, y + ship_size * 2)])
 
     def draw_jarvis_panel(self, lines, center_y, big=False):
-        """Draw instructional text with blue background"""
         self.update_font_sizes()
         font = self.bigfont if big else self.font
         
-        # Wrap text
         max_width = int(self.screen.get_width() * 0.8)
         padding = max(20, int(self.screen.get_width() * 0.02))
         available_width = max_width - (padding * 2)
@@ -408,7 +472,6 @@ class Game:
             if line == "": wrapped_lines.append("")
             else: wrapped_lines.extend(wrap_text(line, font, available_width))
         
-        # Calculate panel size
         line_heights = [font.size(line)[1] if line else int(font.get_height() * 0.5) for line in wrapped_lines]
         spacing = max(8, int(self.screen.get_height() * 0.012))
         total_height = sum(line_heights) + (len(wrapped_lines) - 1) * spacing
@@ -417,12 +480,10 @@ class Game:
         panel_width = min(max_width, max_line_width + (padding * 2))
         panel_height = total_height + padding
         
-        # Create and draw panel
         panel = pygame.Surface((panel_width, panel_height), pygame.SRCALPHA)
         corner_radius = max(15, int(self.screen.get_width() * 0.015))
         pygame.draw.rect(panel, JARVIS_BLUE, (0, 0, panel_width, panel_height), border_radius=corner_radius)
         
-        # Draw text
         y = padding // 2
         for i, line in enumerate(wrapped_lines):
             if line:
@@ -436,7 +497,6 @@ class Game:
     def render(self):
         self.screen.fill(BLACK)
         
-        # Draw game objects
         for obj in self.solar_flares + self.shooting_stars + self.meteors + self.bullets: 
             obj.draw(self.screen)
         if self.ship.alive: self.ship.draw(self.screen)
@@ -444,16 +504,15 @@ class Game:
         
         self.draw_hud()
 
-        # Draw instructional panels with blue backgrounds
         if self.state == "menu":
             self.draw_jarvis_panel([
                 "RETRO ROCKET", "", "Press Enter to Start",
-                "Arrow keys OR WASD to steer", "Space to shoot",
                 f"Near misses: +{NEAR_MISS_POINTS} points!", f"Credits: {self.credits}", "",
                 "Big meteors take multiple hits!",
-                "BEWARE: Solar flares & shooting stars after 30s!"], self.screen.get_height() // 2 - 40, big=True)
+                "Press P to pause and for controls", 
+                ], self.screen.get_height() // 2 - 40, big=True)
         elif self.paused:
-            self.draw_jarvis_panel(["PAUSED", "", "Press P to resume"], self.screen.get_height() // 2, big=True)
+            self.draw_jarvis_panel(["PAUSED", "", "Press P to resume", "W,S,D or arrrow keys to control & space to shoot"], self.screen.get_height() // 2, big=True)
         elif self.state == "gameover":
             credits_earned = points_to_credits(self.ship.score)
             self.draw_jarvis_panel([
@@ -470,6 +529,8 @@ class Game:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.running = False
+                elif event.type == pygame.USEREVENT:
+                    self.play_random_music()
                 elif event.type == pygame.VIDEORESIZE:
                     self.screen = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
                     self.update_font_sizes()

@@ -1,8 +1,4 @@
 {
-    "credits": 458,
-    "engines": 1,
-    "fuel_capacity": 1,
-    "structure": 1,
-    "avionics": 1,
-    "heat_shield": 1
+  "highscore": 0,
+  "credits": 270
 }
