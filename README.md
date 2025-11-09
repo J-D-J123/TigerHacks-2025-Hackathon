@@ -1,5 +1,5 @@
 # Spaceship Survial (TigerHacks-2025-Hackathon)
-**Spaceship Survial is a Pygame game where you can upgrade your rocket earn in game credits by suriving.**
+**Spaceship Survial is a Pygame game where you can upgrade your rocket earn in game credits by suriving. Then you can use these credits to buy more upgrades to surivie**
 
 ![Demo Screenshot](./DEMO_SC.png)
 
