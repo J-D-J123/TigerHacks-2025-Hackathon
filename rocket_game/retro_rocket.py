@@ -8,7 +8,6 @@ import math
 import random
 import json
 from pathlib import Path
-import os
 
 # Constants
 SCREEN_W, SCREEN_H = 960, 640
@@ -19,8 +18,8 @@ THRUST, DRAG = 220.0, 0.98
 NEAR_MISS_RADIUS, NEAR_MISS_POINTS, NEAR_MISS_COOLDOWN = 50.0, 25, 1.0
 CREDITS_CONVERSION_RATE = 5
 SAVE_FILE = "store_data.json"
-WAVE_BASE_DURATION = 30.0
-WAVE_INCREMENT = 30.0
+WAVE_BASE_DURATION = 15
+WAVE_INCREMENT = 15.0
 SOLAR_FLARE_WARNING_TIME = 2.0
 SHOOTING_STAR_SPEED = 400.0
 MUSIC_FOLDER = "assets/audio/music"
@@ -144,6 +143,21 @@ class NearMissEffect:
         s = pygame.Surface(text_surf.get_size(), pygame.SRCALPHA); s.blit(text_surf, (0, 0)); s.set_alpha(alpha)
         surf.blit(s, (int(self.x - text_surf.get_width() / 2), int(self.y)))
 
+class HitEffect:
+    __slots__ = ("x", "y", "life", "alive", "points")
+    def __init__(self): self.alive = False
+    def spawn(self, x, y, points): self.alive, self.x, self.y, self.life, self.points = True, x, y, 1.2, points
+    def update(self, dt):
+        if self.alive: 
+            self.life -= dt; self.y -= 50 * dt
+            if self.life <= 0: self.alive = False
+    def draw(self, surf):
+        if not self.alive: return
+        alpha, font_size = min(255, int(self.life * 255)), max(18, int(surf.get_width() * 0.02))
+        text_surf = pygame.font.SysFont("Consolas", font_size, bold=True).render(f"+{self.points}", True, YELLOW)
+        s = pygame.Surface(text_surf.get_size(), pygame.SRCALPHA); s.blit(text_surf, (0, 0)); s.set_alpha(alpha)
+        surf.blit(s, (int(self.x - text_surf.get_width() / 2), int(self.y)))
+
 class SolarFlare:
     __slots__ = ("x", "y", "radius", "alive", "warning_time", "active", "max_radius", "growth_rate")
     def __init__(self): self.alive = False
@@ -237,16 +251,19 @@ class Ship:
 # Main Game
 class Game:
     def __init__(self):
+
+        # faster buffer for mixer
+        pygame.mixer.pre_init(44100, -16, 2, 512)
         pygame.init()
-        pygame.mixer.init()
         self.screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
-        pygame.display.set_caption("Retro Rocket")
+        pygame.display.set_caption("Space Survival")
         self.clock = pygame.time.Clock()
         self.update_font_sizes()
         self.ship = Ship()
         self.bullets = [Bullet() for _ in range(MAX_BULLETS)]
         self.meteors = [Meteor() for _ in range(MAX_METEORS)]
         self.near_miss_effects = [NearMissEffect() for _ in range(10)]
+        self.hit_effects = [HitEffect() for _ in range(15)]
         self.solar_flares = [SolarFlare() for _ in range(3)]
         self.shooting_stars = [ShootingStar() for _ in range(5)]
         self.spawn_timer, self.running, self.paused, self.state = 0.0, True, False, "menu"
@@ -304,7 +321,9 @@ class Game:
     def return_to_menu(self):
         self.credits += points_to_credits(self.ship.score)
         save_save({"highscore": self.highscore, "credits": self.credits})
-        pygame.mixer.music.stop()  # Stop music when returning to menu
+
+        # Stop music when returning to menu
+        pygame.mixer.music.stop() 
         self.should_return_to_menu = True
 
     def spawn_meteor(self):
@@ -323,6 +342,10 @@ class Game:
 
     def spawn_near_miss_effect(self, x, y, points):
         for effect in self.near_miss_effects:
+            if not effect.alive: effect.spawn(x, y, points); break
+
+    def spawn_hit_effect(self, x, y, points):
+        for effect in self.hit_effects:
             if not effect.alive: effect.spawn(x, y, points); break
 
     def handle_input(self, dt):
@@ -373,6 +396,7 @@ class Game:
                         gained = int(m.r * 2)
                         self.ship.score += gained
                         if self.ship.score > self.highscore: self.highscore = self.ship.score
+                        self.spawn_hit_effect(m.x, m.y, gained)
                     break
 
         for flare in self.solar_flares:
@@ -506,7 +530,7 @@ class Game:
 
         if self.state == "menu":
             self.draw_jarvis_panel([
-                "RETRO ROCKET", "", "Press Enter to Start",
+                "Press Enter to Start",
                 f"Near misses: +{NEAR_MISS_POINTS} points!", f"Credits: {self.credits}", "",
                 "Big meteors take multiple hits!",
                 "Press P to pause and for controls", 

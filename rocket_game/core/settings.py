@@ -7,12 +7,13 @@ import os
 SCREEN_WIDTH = 960
 SCREEN_HEIGHT = 540
 FPS = 60
-WINDOW_TITLE = "Space Surival"
+WINDOW_TITLE = "Spaceship Survival"
 
 # --- Colors ---
 WHITE = (245, 245, 245)
 GRAY = (130, 130, 140)
-ACCENT = (60, 180, 255)
+# ACCENT = (60, 180, 255)
+ACCENT = (201, 134, 0)
 BG1 = (18, 18, 28)
 BG2 = (36, 30, 60)
 SLIDER_BG = (60, 60, 70)
