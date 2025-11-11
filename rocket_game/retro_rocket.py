@@ -251,7 +251,6 @@ class Ship:
 # Main Game
 class Game:
     def __init__(self):
-
         # faster buffer for mixer
         pygame.mixer.pre_init(44100, -16, 2, 512)
         pygame.init()
@@ -311,7 +310,7 @@ class Game:
 
     def reset_for_play(self):
         self.ship.reset()
-        for obj in self.bullets + self.meteors + self.near_miss_effects + self.solar_flares + self.shooting_stars: 
+        for obj in self.bullets + self.meteors + self.near_miss_effects + self.hit_effects + self.solar_flares + self.shooting_stars: 
             obj.alive = False
         self.spawn_timer, self.state, self.paused, self.should_return_to_menu = 0.0, "playing", False, False
         self.game_time, self.weather_timer = 0.0, 0.0
@@ -321,8 +320,6 @@ class Game:
     def return_to_menu(self):
         self.credits += points_to_credits(self.ship.score)
         save_save({"highscore": self.highscore, "credits": self.credits})
-
-        # Stop music when returning to menu
         pygame.mixer.music.stop() 
         self.should_return_to_menu = True
 
@@ -371,7 +368,7 @@ class Game:
             self.wave_time = 0.0
         
         self.ship.update(dt)
-        for obj in self.bullets + self.meteors + self.near_miss_effects + self.solar_flares + self.shooting_stars: 
+        for obj in self.bullets + self.meteors + self.near_miss_effects + self.hit_effects + self.solar_flares + self.shooting_stars: 
             obj.update(dt)
 
         # Weather events only spawn after Wave 1
@@ -387,6 +384,7 @@ class Game:
                     for star in self.shooting_stars:
                         if not star.alive: star.spawn(); break
 
+        # Bullet-meteor collision with hit effects
         for b in self.bullets:
             if not b.alive: continue
             for m in self.meteors:
@@ -399,6 +397,7 @@ class Game:
                         self.spawn_hit_effect(m.x, m.y, gained)
                     break
 
+        # Solar flare collision
         for flare in self.solar_flares:
             if flare.check_collision(self.ship.x, self.ship.y):
                 self.ship.lives -= 1
@@ -409,6 +408,7 @@ class Game:
                 if self.ship.lives <= 0: self.ship.alive = False; self.state = "gameover"
                 break
 
+        # Shooting star collision
         for star in self.shooting_stars:
             if star.check_collision(self.ship.x, self.ship.y, SHIP_RADIUS):
                 self.ship.lives -= 1
@@ -419,6 +419,7 @@ class Game:
                 if self.ship.lives <= 0: self.ship.alive = False; self.state = "gameover"
                 break
 
+        # Meteor collision and near-miss detection
         for m in self.meteors:
             if not m.alive: continue
             dx, dy = self.ship.x - m.x, self.ship.y - m.y
@@ -439,6 +440,7 @@ class Game:
                 self.spawn_near_miss_effect((self.ship.x + m.x) / 2, (self.ship.y + m.y) / 2, NEAR_MISS_POINTS)
                 m.last_near_miss = 0.0
 
+        # Spawn meteors
         self.spawn_timer += dt
         if self.spawn_timer >= 0.6:
             self.spawn_timer = 0
@@ -524,7 +526,8 @@ class Game:
         for obj in self.solar_flares + self.shooting_stars + self.meteors + self.bullets: 
             obj.draw(self.screen)
         if self.ship.alive: self.ship.draw(self.screen)
-        for effect in self.near_miss_effects: effect.draw(self.screen)
+        for effect in self.near_miss_effects + self.hit_effects: 
+            effect.draw(self.screen)
         
         self.draw_hud()
 
@@ -536,7 +539,7 @@ class Game:
                 "Press P to pause and for controls", 
                 ], self.screen.get_height() // 2 - 40, big=True)
         elif self.paused:
-            self.draw_jarvis_panel(["PAUSED", "", "Press P to resume", "W,S,D or arrrow keys to control & space to shoot"], self.screen.get_height() // 2, big=True)
+            self.draw_jarvis_panel(["PAUSED", "", "Press P to resume", "W,A,D or arrow keys to control & space to shoot"], self.screen.get_height() // 2, big=True)
         elif self.state == "gameover":
             credits_earned = points_to_credits(self.ship.score)
             self.draw_jarvis_panel([
